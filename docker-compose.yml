@@ -1,0 +1,32 @@
+version: '3.4'
+
+networks:
+  backend:
+
+services:
+  usersystemapi:
+    container_name: usersystem-api
+    image: ${DOCKER_REGISTRY-}usersystemapi
+    ports: 
+      - "18009:80"
+    build:
+      context: .
+      dockerfile: UserSystemAPI/Dockerfile
+    environment:
+      - DB_HOST=usersystemdb
+      - DB_NAME=usersystem
+      - DB_SA_PASSWORD=password1!
+    networks:
+      - backend
+
+  usersystemdb:
+    container_name: usersystem-db
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=password1!
+    ports:
+      - '18002:1433'
+    restart: always
+    networks:
+      - backend
