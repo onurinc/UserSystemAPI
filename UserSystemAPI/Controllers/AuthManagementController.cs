@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Cors;
+using UserSystemAPI.Data;
 
 namespace UserSystemAPI.Controllers;
 [ApiController]
@@ -21,13 +22,17 @@ public class AuthManagementController : ControllerBase
     private readonly UserManager<IdentityUser> _userManager;
     private readonly JwtConfig _jwtConfig;
     private readonly RoleManager<IdentityRole> _roleManager;
-    
+    private readonly ApiDbContext _context;
+
+
     public AuthManagementController(
+        ApiDbContext context,
         ILogger<AuthManagementController> logger,
         UserManager<IdentityUser> userManager,
         RoleManager<IdentityRole> roleManager,
         IOptionsMonitor<JwtConfig> optionsMonitor)
     {
+        _context = context;
         _logger = logger;
         _userManager = userManager;
         _roleManager = roleManager;
@@ -128,14 +133,14 @@ public class AuthManagementController : ControllerBase
         }
         return BadRequest("invalid auth");
     }
-    
+
     private async Task<AuthResult> GenerateJwtToken(IdentityUser user)
     {
         var jwtTokenHandler = new JwtSecurityTokenHandler();
 
         var key = Encoding.ASCII.GetBytes(_jwtConfig.Secret);
         var claims = await GetAllValidClaims(user);
-        
+
         var tokenDescriptor = new SecurityTokenDescriptor()
         {
             Subject = new ClaimsIdentity(claims),
@@ -153,5 +158,5 @@ public class AuthManagementController : ControllerBase
             Result = true
         };
     }
-    
+
 }
