@@ -9,10 +9,10 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+
 builder.Services.Configure<JwtConfig>(builder.Configuration.GetSection("JwtConfig"));
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -20,19 +20,22 @@ builder.Services.AddIdentity<IdentityUser, IdentityRole>(options => options.Sign
     .AddEntityFrameworkStores<ApiDbContext>();
 
 
-var dbHost = Environment.GetEnvironmentVariable("DB_HOST");
-var dbName = Environment.GetEnvironmentVariable("DB_NAME");
-var dbPassword = Environment.GetEnvironmentVariable("DB_SA_PASSWORD");
+//var dbHost = Environment.GetEnvironmentVariable("DB_HOST");
+//var dbName = Environment.GetEnvironmentVariable("DB_NAME");
+//var dbPassword = Environment.GetEnvironmentVariable("DB_SA_PASSWORD");
 
-var connectionString = $"Data Source={dbHost};Initial Catalog={dbName};User ID=sa;Password={dbPassword}";
+//var connectionString = $"Data Source={dbHost};Initial Catalog={dbName};User ID=sa;Password={dbPassword}";
 
-var conn = builder.Configuration.GetConnectionString("DefaultConnection");
 
-builder.Services.AddDbContext<ApiDbContext>(options =>
-    options.UseSqlServer(connectionString));
+//var conn = builder.Configuration.GetConnectionString("DefaultConnection");
 
+// Kubernetes, docker db
 //builder.Services.AddDbContext<ApiDbContext>(options =>
-//    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+//    options.UseSqlServer(connectionString));
+
+//InMemoryDb for testing
+builder.Services.AddDbContext<ApiDbContext>(options => options.UseInMemoryDatabase("EngementsDb"));
+
 
 
 builder.Services.AddAuthentication(options =>
@@ -54,32 +57,15 @@ builder.Services.AddAuthentication(options =>
         ValidateLifetime = false,
     };
 });
-// potentially for when i need to connect to my frontend
-// builder.Services.AddCors(options => options.AddPolicy("Frontend",
-//     policy =>
-//     {
-//         policy.WithOrigins("put localhost link here").AllowAnyMethod().AllowAnyHeader();
-//     }));
 
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-//if (app.Environment.IsDevelopment())
-//{
-//    app.UseSwagger();
-//    app.UseSwaggerUI();
-//}
-
-
 app.UseSwagger();
 app.UseSwaggerUI();
-//app.UseHttpsRedirection();
-
+app.UseAuthentication();
 app.UseAuthorization();
 
-// potentially for when i need to connect to my frontend
-// app.UseCors("Frontend");
 
 app.MapControllers();
 
@@ -88,7 +74,8 @@ using (var scope = app.Services.CreateScope())
     var services = scope.ServiceProvider;
 
     var context = services.GetRequiredService<ApiDbContext>();
-    if (context.Database.GetPendingMigrations().Any())
+
+    if (!context.Database.IsInMemory() && context.Database.GetPendingMigrations().Any())
     {
         context.Database.Migrate();
     }

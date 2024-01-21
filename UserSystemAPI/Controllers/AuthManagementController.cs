@@ -41,7 +41,7 @@ public class AuthManagementController : ControllerBase
 
     private async Task<List<Claim>> GetAllValidClaims(IdentityUser user)
     {
-                   var claims = new List<Claim>
+        var claims = new List<Claim>
                     {
                         new Claim("Id", user.Id),
                         new Claim(ClaimTypes.NameIdentifier, user.Id),
@@ -49,33 +49,187 @@ public class AuthManagementController : ControllerBase
                         new Claim(JwtRegisteredClaimNames.Sub, user.Email),
                         new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
                     };
-        
-                    // Getting the claims that we have assigned to the user
-                    var userClaims = await _userManager.GetClaimsAsync(user);
-                    claims.AddRange(userClaims);
-        
-                    // Get the user role and add it to the claims
-                    var userRoles = await _userManager.GetRolesAsync(user);
-        
-                    foreach (var userRole in userRoles)
-                    {
-                        var role = await _roleManager.FindByNameAsync(userRole);
-        
-                        if (role != null)
-                        {
-                            claims.Add(new Claim(ClaimTypes.Role, userRole));
-        
-                            var roleClaims = await _roleManager.GetClaimsAsync(role);
-                            foreach (var roleClaim in roleClaims)
-                            {
-                                claims.Add(roleClaim);
-                            }
-                        }
-                    }
-        
-                    return claims;
+
+        // Getting the claims that we have assigned to the user
+        var userClaims = await _userManager.GetClaimsAsync(user);
+        claims.AddRange(userClaims);
+
+        // Get the user role and add it to the claims
+        var userRoles = await _userManager.GetRolesAsync(user);
+
+        foreach (var userRole in userRoles)
+        {
+            var role = await _roleManager.FindByNameAsync(userRole);
+
+            if (role != null)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, userRole));
+
+                var roleClaims = await _roleManager.GetClaimsAsync(role);
+                foreach (var roleClaim in roleClaims)
+                {
+                    claims.Add(roleClaim);
+                }
+            }
+        }
+
+        return claims;
     }
-    
+
+    [HttpGet]
+    [Route("GetUserByToken")]
+    public IActionResult GetUserByToken()
+    {
+        var tokenString = HttpContext.Request.Headers["Authorization"].FirstOrDefault()?.Split(" ").Last();
+
+        if (string.IsNullOrEmpty(tokenString))
+        {
+            return BadRequest("Token not provided");
+        }
+
+        var tokenHandler = new JwtSecurityTokenHandler();
+        var key = Encoding.ASCII.GetBytes(_jwtConfig.Secret);
+
+        try
+        {
+            var token = tokenHandler.ReadToken(tokenString) as JwtSecurityToken;
+
+            if (token == null)
+            {
+                return BadRequest("Invalid token");
+            }
+
+            var userId = token.Claims.First(claim => claim.Type == "Id").Value;
+            var user = _userManager.FindByIdAsync(userId).Result;
+
+            if (user == null)
+            {
+                return NotFound("User not found");
+            }
+
+            // Here you can customize the data you want to return or return the entire user object
+            var userData = new
+            {
+                UserId = user.Id,
+                UserName = user.UserName,
+                Email = user.Email,
+                // Add other properties as needed
+            };
+
+            return Ok(userData);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error retrieving user from token: {ex.Message}");
+            return StatusCode(500, "Internal Server Error");
+        }
+    }
+
+
+    [HttpGet]
+    [Route("GetUserByUsername/{username}")]
+    public async Task<IActionResult> GetUserByUsername(string username)
+    {
+        var user = await _userManager.FindByNameAsync(username);
+
+        if (user == null)
+        {
+            return NotFound($"User with username {username} not found");
+        }
+
+        // Here you can customize the data you want to return or return the entire user object
+        var userData = new
+        {
+            UserId = user.Id,
+            UserName = user.UserName,
+            Email = user.Email,
+            // Add other properties as needed
+        };
+
+        return Ok(userData);
+    }
+
+
+    [HttpDelete]
+    [Route("DeleteUserByToken")]
+    public async Task<IActionResult> DeleteUserByToken()
+    {
+        try
+        {
+            var tokenString = HttpContext.Request.Headers["Authorization"].FirstOrDefault()?.Split(" ").Last();
+
+            if (string.IsNullOrEmpty(tokenString))
+            {
+                return BadRequest("Token not provided");
+            }
+
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.ASCII.GetBytes(_jwtConfig.Secret);
+
+            var token = tokenHandler.ReadToken(tokenString) as JwtSecurityToken;
+
+            if (token == null)
+            {
+                return BadRequest("Invalid token");
+            }
+
+            var userId = token.Claims.First(claim => claim.Type == "Id").Value;
+            var user = await _userManager.FindByIdAsync(userId);
+
+            if (user == null)
+            {
+                return NotFound("User not found");
+            }
+
+            var result = await _userManager.DeleteAsync(user);
+
+            if (result.Succeeded)
+            {
+                return Ok("User deleted successfully");
+            }
+            else
+            {
+                return BadRequest(result.Errors.Select(error => error.Description).ToList());
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error deleting user: {ex.Message}");
+            return StatusCode(500, "Internal Server Error");
+        }
+    }
+
+
+    [HttpDelete]
+    [Route("DeleteUserByUsername/{username}")]
+    public async Task<IActionResult> DeleteUserByUsername(string username)
+    {
+        try
+        {
+            var user = await _userManager.FindByNameAsync(username);
+
+            if (user == null)
+            {
+                return NotFound($"User with username {username} not found");
+            }
+
+            var result = await _userManager.DeleteAsync(user);
+
+            if (result.Succeeded)
+            {
+                return Ok($"User with username {username} deleted successfully");
+            }
+            else
+            {
+                return BadRequest(result.Errors.Select(error => error.Description).ToList());
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error deleting user by username: {ex.Message}");
+            return StatusCode(500, "Internal Server Error");
+        }
+    }
 
     [HttpPost]
     [Route("Register")]
