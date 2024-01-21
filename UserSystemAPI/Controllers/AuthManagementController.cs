@@ -12,6 +12,9 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Cors;
 using UserSystemAPI.Data;
+using System.Threading.Channels;
+using RabbitMQ.Client;
+using UserSystemAPI.Services;
 
 namespace UserSystemAPI.Controllers;
 [ApiController]
@@ -23,6 +26,7 @@ public class AuthManagementController : ControllerBase
     private readonly JwtConfig _jwtConfig;
     private readonly RoleManager<IdentityRole> _roleManager;
     private readonly ApiDbContext _context;
+    private readonly IMessageProducer _messageProducer;
 
 
     public AuthManagementController(
@@ -30,14 +34,17 @@ public class AuthManagementController : ControllerBase
         ILogger<AuthManagementController> logger,
         UserManager<IdentityUser> userManager,
         RoleManager<IdentityRole> roleManager,
-        IOptionsMonitor<JwtConfig> optionsMonitor)
+        IOptionsMonitor<JwtConfig> optionsMonitor,
+        IMessageProducer messageProducer)
     {
         _context = context;
         _logger = logger;
         _userManager = userManager;
         _roleManager = roleManager;
         _jwtConfig = optionsMonitor.CurrentValue;
+        _messageProducer = messageProducer;
     }
+
 
     private async Task<List<Claim>> GetAllValidClaims(IdentityUser user)
     {
@@ -185,6 +192,8 @@ public class AuthManagementController : ControllerBase
 
             if (result.Succeeded)
             {
+                _messageProducer.SendingMessage(user.UserName);
+
                 return Ok("User deleted successfully");
             }
             else
