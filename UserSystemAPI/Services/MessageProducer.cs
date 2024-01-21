@@ -20,7 +20,7 @@ namespace UserSystemAPI.Services
 
             using var channel = conn.CreateModel();
 
-            channel.QueueDeclare("delete_user", durable: true, exclusive: true);
+            channel.QueueDeclare("delete_user", durable: true, exclusive: false);
 
             var jsonString = JsonSerializer.Serialize(message);
             var body = Encoding.UTF8.GetBytes(jsonString);
